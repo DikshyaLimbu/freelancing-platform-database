@@ -8,6 +8,7 @@ Using Ed:
 3. Run `\d` to verify if relevant tables are created.
 4. Run any SQL script.
 
+The database can be created by running the `freelancing.txt` SQl script in any other POSTGRES engine such as DBeaver as well.
 Some sample sql scripts are available in the sql_queries ppt as well.
 
 # Database ERD
