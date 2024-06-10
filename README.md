@@ -11,3 +11,4 @@ Using Ed:
 Some sample sql scripts are available in the sql_queries ppt as well.
 
 # Database ERD
+![ERD](https://github.com/DikshyaLimbu/freelancing-platform-database/blob/main/database_erd.jpg)
