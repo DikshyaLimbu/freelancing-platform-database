@@ -1,0 +1,317 @@
+-- Dikshya Tamling Limbu
+
+-- The Freelancing Platform Database
+
+-- Insipred from : https://www.workforimpact.com/
+
+-- The freelancing platform is a dynamic space where clients meet skilled freelancers to collaborate
+-- on jobs that have a positive impact. Clients can find freelancers of any expertise area
+-- with the exact skill sets they need, manage payments, and navigate through the job process
+-- from posting to completion with transparent and structured contracts. Freelancers, on the
+-- other hand, have the chance to showcase their expertise, take on meaningful work, and grow their
+-- careers with every successful project.
+
+Drop view Active_contracts CASCADE;
+
+DROP table Clients CASCADE;
+DROP table Freelancers CASCADE;
+DROP table Area_expertises CASCADE;
+DROP table Skills CASCADE;
+DROP table Jobs CASCADE;
+DROP table Proposals CASCADE;
+DROP table Contracts CASCADE;
+DROP table Fixed_terms CASCADE;
+DROP table Hourly_terms CASCADE;
+DROP table Milestones CASCADE;
+DROP table Payments CASCADE;
+DROP table Freelancer_skills CASCADE;
+DROP table Job_skills;
+
+DROP TYPE IF EXISTS gender CASCADE;
+DROP TYPE IF EXISTS job_length CASCADE;
+DROP TYPE IF EXISTS proficiency_level CASCADE;
+DROP TYPE IF EXISTS contract_type CASCADE;
+DROP TYPE IF EXISTS milestone_state CASCADE;
+DROP TYPE IF EXISTS payment_method CASCADE;
+
+
+CREATE TYPE gender AS ENUM ('Male', 'Female', 'Other');
+CREATE TYPE job_length AS ENUM ('<10 hrs per week', '10-30 hrs per week', '>30 hrs per week');
+CREATE TYPE proficiency_level AS ENUM ('Beginner', 'Intermediate', 'Expert');
+CREATE TYPE contract_type AS ENUM ('Hourly', 'Fixed');
+CREATE TYPE milestone_state AS ENUM ('Funded', 'Completed', 'Cancelled');
+CREATE TYPE payment_method AS ENUM ('Payoneer', 'Stripe');
+
+Create table Area_expertises
+(
+    expertise_id INT NOT NULL UNIQUE,
+    expertise_name TEXT NOT NULL UNIQUE,
+    expertise_category TEXT NOT NULL,
+    CONSTRAINT area_expertises_pk PRIMARY KEY (expertise_id)
+);
+
+Create table Skills
+(
+    skill_id INT NOT NULL UNIQUE,
+    skill_name TEXT NOT NULL UNIQUE,
+    CONSTRAINT skills_pk PRIMARY KEY (skill_id)
+);
+
+Create table Clients
+(
+	client_id INT NOT NULL UNIQUE,
+    client_name TEXT NOT NULL,
+    client_gender gender NOT NULL,
+    client_dob DATE,
+    client_email TEXT NOT NULL UNIQUE,
+    client_location TEXT,
+    client_impact_area TEXT,
+
+	CONSTRAINT clients_pk PRIMARY KEY (client_id),
+    CONSTRAINT di_client_gender CHECK (client_gender IN ('Male', 'Female', 'Other')),
+    CONSTRAINT di_client_dob CHECK (client_dob <= CURRENT_DATE)
+);
+
+Create table Freelancers
+(
+	freelancer_id INT NOT NULL UNIQUE,
+    freelancer_name TEXT NOT NULL,
+    freelancer_gender gender NOT NULL,
+    freelancer_dob DATE,
+    freelancer_email TEXT NOT NULL UNIQUE,
+    freelancer_location TEXT,
+    freelancer_education TEXT,
+    freelancer_employment TEXT,
+    expertise_id INT NOT NULL,
+
+	CONSTRAINT freelancers_pk PRIMARY KEY (freelancer_id),
+    CONSTRAINT di_freelancer_gender CHECK (freelancer_gender IN ('Male', 'Female', 'Other')),
+    CONSTRAINT di_freelancer_dob CHECK (freelancer_dob IS NULL OR freelancer_dob <= CURRENT_DATE),
+
+    CONSTRAINT freelancers_fk_area_expertises FOREIGN KEY (expertise_id) REFERENCES Area_expertises(expertise_id) ON DELETE RESTRICT
+);
+
+Create table Jobs
+(
+	job_id INT NOT NULL UNIQUE,
+    job_title TEXT NOT NULL,
+    job_length job_length DEFAULT '<10 hrs per week',
+    job_type contract_type,
+    proficiency_level proficiency_level,
+    is_public BOOLEAN,
+    client_id INT NOT NULL,
+    expertise_id INT NOT NULL,
+
+	CONSTRAINT jobs_pk PRIMARY KEY (job_id),
+    CONSTRAINT di_job_length CHECK (job_length IN ('<10 hrs per week', '10-30 hrs per week', '>30 hrs per week')),
+    CONSTRAINT di_job_type CHECK (job_type IN ('Hourly', 'Fixed')),
+    CONSTRAINT di_proficiency_level CHECK (proficiency_level IN ('Beginner', 'Intermediate', 'Expert')),
+
+    CONSTRAINT jobs_fk_clients FOREIGN KEY (client_id) REFERENCES Clients(client_id)  ON DELETE RESTRICT,
+    CONSTRAINT jobs_fk_area_expertises FOREIGN KEY (expertise_id) REFERENCES Area_expertises(expertise_id) ON DELETE RESTRICT
+);
+
+Create table Proposals
+(
+    proposal_id INT NOT NULL UNIQUE,
+    proposal_desc TEXT NOT NULL,
+    freelancer_id INT NOT NULL,
+    job_id INT NOT NULL,
+
+    CONSTRAINT proposals_pk PRIMARY KEY (proposal_id),
+
+    CONSTRAINT proposals_fk_freelancers FOREIGN KEY (freelancer_id) REFERENCES Freelancers(freelancer_id) ON DELETE RESTRICT,
+    CONSTRAINT proposals_fk_jobs FOREIGN KEY (job_id) REFERENCES Jobs(job_id) ON DELETE RESTRICT
+);
+
+Create table Contracts
+(
+    contract_id INT NOT NULL UNIQUE,
+    is_active BOOLEAN NOT NULL,
+    contract_type contract_type NOT NULL,
+    start_date DATE,
+    due_date DATE,
+    freelancer_id INT NOT NULL,
+    client_id INT NOT NULL,
+    proposal_id INT NOT NULL UNIQUE,
+
+    CONSTRAINT contracts_pk PRIMARY KEY (contract_id),
+    CONSTRAINT di_contract_type CHECK(contract_type in ('Hourly', 'Fixed')),
+    CONSTRAINT di_start_date CHECK (start_date >= CURRENT_DATE),
+    CONSTRAINT di_due_date CHECK (due_date >= start_date),
+
+    CONSTRAINT contracts_fk_freelancers FOREIGN KEY (freelancer_id) REFERENCES Freelancers(freelancer_id) ON DELETE RESTRICT,
+    CONSTRAINT contracts_fk_clients FOREIGN KEY (client_id) REFERENCES Clients(client_id) ON DELETE RESTRICT,
+    CONSTRAINT contracts_fk_proposals FOREIGN KEY (proposal_id) REFERENCES Proposals(proposal_id) ON DELETE RESTRICT
+);
+
+Create table Hourly_terms
+(
+    contract_id INT NOT NULL UNIQUE,
+    total_hours_per_week FLOAT,
+    hourly_rate INT NOT NULL,
+
+    CONSTRAINT hourly_terms_pk PRIMARY KEY (contract_id),
+    CONSTRAINT di_hourly_rate CHECK (hourly_rate >= 5),
+
+    CONSTRAINT hourly_terms_fk_contracts FOREIGN KEY (contract_id) REFERENCES Contracts(contract_id) ON DELETE RESTRICT
+);
+
+Create table Fixed_terms
+(
+    contract_id INT NOT NULL UNIQUE,
+    budget INT,
+    milestone_id INT NOT NULL,
+
+    CONSTRAINT fixed_terms_pk PRIMARY KEY (contract_id),
+
+    CONSTRAINT fixed_terms_fk_contracts FOREIGN KEY (contract_id) REFERENCES Contracts(contract_id) ON DELETE RESTRICT
+);
+
+Create table Milestones
+(
+    milestone_id INT NOT NULL UNIQUE,
+    milestone_desc TEXT NOT NULL,
+    milestone_state milestone_state,
+    start_date DATE,
+    due_date DATE,
+    contract_id INT NOT NULL,
+
+    CONSTRAINT milestones_pk PRIMARY KEY (milestone_id),
+    CONSTRAINT di_milestone_state CHECK (milestone_state IN ('Funded', 'Completed', 'Cancelled')),
+    CONSTRAINT di_start_date CHECK (start_date >= CURRENT_DATE),
+    CONSTRAINT di_due_date CHECK (due_date >= start_date),
+    
+    CONSTRAINT milestones_fk_contracts FOREIGN KEY (contract_id) REFERENCES Contracts(contract_id) ON DELETE RESTRICT
+);
+
+CREATE table Payments
+(
+    payment_id INT NOT NULL UNIQUE,
+    payment_method payment_method NOT NULL,
+    payment_desc TEXT,
+    contract_id INT NOT NULL,
+
+    CONSTRAINT payments_pk PRIMARY KEY (payment_id),
+    CONSTRAINT di_payment_method CHECK(payment_method in ('Payoneer', 'Stripe')),
+
+    CONSTRAINT payments_fk_contracts FOREIGN KEY (contract_id) REFERENCES Contracts(contract_id) ON DELETE RESTRICT
+);
+
+CREATE table Freelancer_skills
+(
+    skill_id INT NOT NULL,
+    freelancer_id INT NOT NULL,
+
+    CONSTRAINT freelancer_skills_pk PRIMARY KEY (skill_id, freelancer_id),
+    CONSTRAINT freelancer_skills_fk_skills FOREIGN KEY (skill_id) REFERENCES Skills(skill_id) ON DELETE CASCADE, 
+    CONSTRAINT freelancer_skills_fk_freelancers FOREIGN KEY (freelancer_id) REFERENCES Freelancers(freelancer_id) ON DELETE RESTRICT
+);
+
+CREATE table Job_skills
+(
+    skill_id INT NOT NULL,
+    job_id INT NOT NULL,
+
+    CONSTRAINT job_skills_pk PRIMARY KEY (skill_id, job_id),
+    CONSTRAINT job_skills_fk_skills FOREIGN KEY (skill_id) REFERENCES Skills(skill_id) ON DELETE CASCADE, 
+    CONSTRAINT job_skills_fk_jobs FOREIGN KEY (job_id) REFERENCES Jobs(job_id) ON DELETE RESTRICT
+);
+
+CREATE view Active_contracts AS
+SELECT *
+FROM Contracts
+WHERE is_active = TRUE;
+
+-- Insert into Area_expertises
+INSERT INTO Area_expertises (expertise_id, expertise_name, expertise_category) VALUES
+(1, 'Web Development', 'Development'),
+(2, 'Graphic Design', 'Design'),
+(3, 'Data Science', 'Development'),
+(4, 'Social Media Marketing', 'Marketing'),
+(5, 'SEO', 'Marketing'),
+(6, 'Marketing', 'Marketing');
+
+-- Insert into Skills
+INSERT INTO Skills (skill_id, skill_name) VALUES
+(1, 'JavaScript'),
+(2, 'Adobe Photoshop'),
+(3, 'Python'),
+(4, 'SQL'),
+(5, 'Facebook Ads');
+
+-- Insert into Clients
+INSERT INTO Clients (client_id, client_name, client_gender, client_dob, client_email, client_location, client_impact_area) VALUES
+(1, 'Alice Johnson', 'Female', '1982-06-15', 'alice@example.com', 'New York', 'Education'),
+(2, 'Bob Smith', 'Male', '1975-09-23', 'bob@example.com', 'California', 'Environment'),
+(3, 'Charlie Brown', 'Other', '1990-01-10', 'charlie@example.com', 'Texas', 'Healthcare'),
+(4, 'Diana Prince', 'Female', '1985-12-24', 'diana@example.com', 'Washington', 'Education'),
+(5, 'Edward Newgate', 'Male', '1978-03-02', 'edward@example.com', 'Florida', 'Animal Welfare');
+
+-- Insert into Freelancers
+INSERT INTO Freelancers (freelancer_id, freelancer_name, freelancer_gender, freelancer_dob, freelancer_email, freelancer_location, freelancer_education, freelancer_employment, expertise_id) VALUES
+(1, 'John Doe', 'Male', '1992-04-05', 'john@example.com', 'California', 'BS Computer Science', 'Part-time', 1),
+(2, 'Jane Smith', 'Female', '1995-07-20', 'jane@example.com', 'California', 'MA Graphic Design', 'Full-time', 2),
+(3, 'Max Payne', 'Male', '1988-12-17', 'max@example.com', 'New York', 'PhD Data Science', 'Freelance', 3),
+(4, 'Anna Bell', 'Female', '1991-09-11', 'anna@example.com', 'Texas', 'BA Marketing', 'Freelance', 4),
+(5, 'Oliver Twist', 'Male', '1993-03-15', 'oliver@example.com', 'Florida', 'BA English', 'Part-time', 3);
+
+-- Insert into Jobs
+INSERT INTO Jobs (job_id, job_title, job_length, job_type, proficiency_level, is_public, client_id, expertise_id) VALUES
+(1, 'Website Creation', '<10 hrs per week', 'Fixed', 'Expert', TRUE, 1, 1),
+(2, 'Logo Design', '10-30 hrs per week', 'Fixed', 'Intermediate', TRUE, 2, 2),
+(3, 'Analyze Sales Data', '>30 hrs per week', 'Hourly', 'Expert', TRUE, 3, 3),
+(4, 'Social Media Campaign', '<10 hrs per week', 'Fixed', 'Intermediate', TRUE, 4, 4),
+(5, 'Data Analysis of E-commerce website', '10-30 hrs per week', 'Hourly', 'Beginner', TRUE, 3, 3);
+
+-- Insert into Proposals
+INSERT INTO Proposals (proposal_id, proposal_desc, freelancer_id, job_id) VALUES
+(1, 'Proposal for a new website', 1, 1),
+(2, 'Branding and logo design proposal', 2, 2),
+(3, 'Data analysis and insights', 3, 3),
+(4, 'Comprehensive social media strategy', 4, 4),
+(5, 'Expert in analysis of SAAS products', 5, 5);
+
+-- Insert into Contracts
+INSERT INTO Contracts (contract_id, is_active, contract_type, start_date, due_date, freelancer_id, client_id, proposal_id) VALUES
+(1, TRUE, 'Fixed', CURRENT_DATE + INTERVAL '1 day', CURRENT_DATE + INTERVAL '2 days', 1, 1, 1),
+(2, TRUE, 'Fixed', CURRENT_DATE + INTERVAL '1 day', CURRENT_DATE + INTERVAL '2 days', 2, 2, 2),
+(3, TRUE, 'Hourly', CURRENT_DATE + INTERVAL '1 day', CURRENT_DATE + INTERVAL '2 days', 3, 3, 3),
+(4, TRUE, 'Hourly', CURRENT_DATE + INTERVAL '1 day', CURRENT_DATE + INTERVAL '2 days', 5, 3, 5);
+
+-- Insert into Fixed_terms
+INSERT INTO Fixed_terms (contract_id, budget, milestone_id) VALUES
+(1, 5000, 1),
+(2, 3000, 2);
+
+-- Insert into Hourly_terms
+INSERT INTO Hourly_terms (contract_id, total_hours_per_week, hourly_rate) VALUES
+(3, 40, 50),
+(4, 20, 40);
+
+-- Insert into Milestones
+INSERT INTO Milestones (milestone_id, milestone_desc, milestone_state, start_date, due_date, contract_id) VALUES
+(1, 'Initial Website Design', 'Funded', CURRENT_DATE + INTERVAL '1 day', CURRENT_DATE + INTERVAL '2 days', 1),
+(2, 'Programming Core Logic', 'Funded', CURRENT_DATE + INTERVAL '2 days', CURRENT_DATE + INTERVAL '3 days', 1),
+(3, 'Testing and Review', 'Funded', CURRENT_DATE + INTERVAL '3 days', CURRENT_DATE + INTERVAL '4 days', 1),
+(4, 'Deployment', 'Funded', CURRENT_DATE + INTERVAL '4 days', CURRENT_DATE + INTERVAL '5 days', 1),
+(5, 'SEO Keyword Analysis', 'Completed', CURRENT_DATE + INTERVAL '1 day', CURRENT_DATE + INTERVAL '2 days', 2);
+
+-- Insert into Payments
+INSERT INTO Payments (payment_id, payment_method, payment_desc, contract_id) VALUES
+(1, 'Payoneer', 'Initial deposit for website creation', 1),
+(2, 'Payoneer', 'Payment for Milestone 2', 1),
+(3, 'Payoneer', 'Payment for Milestone 3', 1),
+(4, 'Payoneer', 'Payment for Milestone 4', 1),
+(5, 'Stripe', 'Data Science work', 2);
+
+-- Insert into Freelancer_skills
+INSERT INTO Freelancer_skills (skill_id, freelancer_id) VALUES
+(1, 1), (2,1), (2, 2), (3, 3), (3, 5), (4, 3), (4, 5), (5, 4);
+
+
+-- Insert into Job_skills
+INSERT INTO job_skills (skill_id, job_id) VALUES
+(1, 1), (2,1), (2, 2), (3, 3), (3, 5), (4, 3), (4, 5), (5, 4);
+
+
